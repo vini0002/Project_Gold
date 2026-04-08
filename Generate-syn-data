@@ -1,0 +1,88 @@
+#####################################################################
+# This code generates synthetic data for healthcare fraud detection
+#####################################################################
+from gettext import install
+import random
+import pandas as pd
+
+legit_templates = [
+    "Patient visited for routine {procedure} with no complications.",
+    "Standard {procedure} performed, patient responded well.",
+    "Follow-up consultation for {condition}, stable condition.",
+    "Initial diagnosis of {condition}, prescribed medication.",
+    "Routine checkup, vitals normal, no additional procedures required."
+]
+
+fraud_templates = [
+    "Repeated billing for {procedure} within short duration.",
+    "Unusually high frequency of {procedure} for same patient.",
+    "Duplicate claim submitted for {procedure}.",
+    "Manual override applied for {procedure} approval.",
+    "Inconsistent diagnosis reported for {condition} and {procedure}."
+]
+
+procedures = ["MRI scan", "blood test", "X-ray", "CT scan", "ultrasound"]
+conditions = ["hypertension", "diabetes", "migraine", "back pain", "infection"]
+
+def generate_data(n=300):
+    data = []
+    
+    for _ in range(n):
+        if random.random() > 0.7:  # ~30% fraud
+            template = random.choice(fraud_templates)
+            label = 1
+        else:
+            template = random.choice(legit_templates)
+            label = 0
+        
+        text = template.format(
+            procedure=random.choice(procedures),
+            condition=random.choice(conditions)
+        )
+        
+        data.append((text, label))
+    
+    return pd.DataFrame(data, columns=["text", "label"])
+
+df = generate_data(300)
+print(df.head())
+
+###########################################################
+# This code trains a simple logistic regression model for fraud detection#
+############################################################
+
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import classification_report
+
+# Split data
+X_train, X_test, y_train, y_test = train_test_split(
+    df["text"], df["label"], test_size=0.2, random_state=42
+)
+
+# Convert text to features
+vectorizer = TfidfVectorizer()
+X_train_vec = vectorizer.fit_transform(X_train)
+X_test_vec = vectorizer.transform(X_test)
+
+# Train model
+model = LogisticRegression()
+model.fit(X_train_vec, y_train)
+
+# Predictions
+y_pred = model.predict(X_test_vec)
+
+print(classification_report(y_test, y_pred))
+
+##########################################
+import shap
+
+# Create explainer
+explainer = shap.Explainer(model, X_train_vec)
+
+# Explain test samples
+shap_values = explainer(X_test_vec)
+
+# Visualize one prediction
+shap.plots.bar(shap_values[0])
